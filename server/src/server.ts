@@ -1,102 +1,88 @@
 import { McpServer } from "skybridge/server";
-import { z } from "zod";
-import { env } from "./env.js";
-import { executeActions, fetchTasks } from "./supabase.js";
-
-const SERVER_URL = "http://localhost:3000";
-
-const ActionSchema = z.object({
-  type: z.enum(["add", "delete", "toggle", "move"]),
-  title: z.string().optional().describe("Task title (required for add)"),
-  priority: z
-    .enum(["low", "medium", "high"])
-    .optional()
-    .describe("Task priority"),
-  dueDate: z.string().optional().describe("Due date (ISO string)"),
-  taskId: z.string().optional().describe("Task ID (required for delete/toggle/move)"),
-  status: z.enum(["todo", "in_progress", "done"]).optional().describe("Target status (required for move)"),
-});
 
 const server = new McpServer(
-  { name: "todo-app", version: "0.0.1" },
-  { capabilities: {} },
-).registerWidget(
-  "manage-tasks",
-  {
-    description: "View and manage your to-do list",
-    _meta: {
-      ui: {
-        csp: {
-          resourceDomains: ["https://fonts.googleapis.com"],
-          connectDomains: [env.SUPABASE_URL],
-        },
-      },
-    },
+  { 
+    name: "incident-commander", 
+    version: "0.0.1"
   },
-  {
-    description:
-      "Call with no arguments to display the user's task board. Pass an `actions` array to add, move, or delete tasks — all actions are applied before returning the updated list.",
-    inputSchema: {
-      actions: z
-        .array(ActionSchema)
-        .optional()
-        .describe("Actions to perform before returning the task list"),
-    },
-    annotations: {
-      readOnlyHint: false,
-      openWorldHint: false,
-      destructiveHint: false,
-    },
+  { 
+    capabilities: {},
+    instructions: `You are Incident Commander — an expert on-call DevOps engineer with deep knowledge of this company's infrastructure.
+
+      When someone reports an alert, error, or incident, you ALWAYS follow this exact sequence:
+
+      INVESTIGATION (call all four tools before responding):
+      1. Call get_service_info() to understand the affected service, its tier, owner and dependencies
+      2. Call get_recent_deploys() to check if a bad deploy could be the cause
+      3. Call get_recent_incidents() to find historical patterns and previous resolutions
+      4. Call get_runbook() to retrieve the relevant recovery steps
+
+      Then respond with this EXACT structure:
+
+      ---
+      🚨 INCIDENT BRIEF
+
+      SEVERITY: [P1 / P2 / P3]
+      - P1: Service down, revenue impacted, all hands
+      - P2: Degraded performance, subset of users affected
+      - P3: Minor issue, workaround available
+
+      SERVICE: [name] (Tier [X] — [Critical/Important/Low])
+      OWNER: [name] | TEAM: [team] | SLACK: #[team]-oncall
+
+      ---
+      🔍 PROBABLE ROOT CAUSE
+      [2-3 sentences. Be specific — reference the deploy, the pattern, 
+      the dependency. Not "network issue" but "Redis cache eviction 
+      triggered by the v4.2.1 deploy 2 hours ago is causing session 
+      lookups to fall back to postgres, exhausting the connection pool"]
+
+      ---
+      💥 BLAST RADIUS
+      [Which dependent services are at risk based on the dependency graph.
+      If payments-api is down and auth-service depends on it, say so explicitly]
+
+      ---
+      🔧 STEP BY STEP FIX
+      1. [Most immediate action — usually verify/isolate]
+      2. [The actual fix]
+      3. [Verify it worked — what metric/log to check]
+      4. [If not resolved, escalation path]
+
+      ---
+      ⏪ ROLLBACK OPTION
+      [If the fix doesn't work or makes things worse, exactly how to roll back.
+      Reference the last known good deploy version from the deploy history]
+
+      ---
+      📋 HISTORICAL MATCH
+      [Did this exact pattern happen before? Quote the previous incident title,
+      when it happened, and how it was resolved. If no match, say "No previous 
+      match found — treat as novel incident"]
+
+      ---
+      💬 DRAFT SLACK MESSAGE
+      \`\`\`
+      🚨 *[P1/P2/P3] INCIDENT* | [service-name] | [one line description]
+      *Impact:* [who is affected and how]
+      *Status:* Investigating
+      *On-call:* [owner name]
+      *Next update:* 15 mins
+      \`\`\`
+
+      ---
+      ✅ RESOLUTION TRACKING
+      After walking through the fix, always ask:
+      "Did this fix resolve the incident? Reply YES or NO — I'll save 
+      the outcome to the knowledge base for future reference."
+
+      If the user replies YES, call save_incident_resolution() with the 
+      full details.
+      If the user replies NO, suggest escalation and still call 
+      save_incident_resolution() with worked: false so the team knows 
+      this approach failed.`
   },
-  async ({ actions }, extra) => {
-    const userId = (extra.authInfo?.extra as any)?.userId as
-      | string
-      | undefined;
-
-    if (!userId) {
-      return {
-        content: [
-          { type: "text", text: "Please sign in to manage your tasks." },
-        ],
-        isError: true,
-        _meta: {
-          "mcp/www_authenticate": [
-            `Bearer resource_metadata="${SERVER_URL}/.well-known/oauth-protected-resource/mcp"`,
-          ],
-        },
-      };
-    }
-
-    if (actions && actions.length > 0) {
-      await executeActions(userId, actions);
-    }
-
-    const { tasks, error } = await fetchTasks(userId);
-
-    if (error) {
-      return {
-        content: [
-          { type: "text", text: `Error fetching tasks: ${error.message}` },
-        ],
-        isError: true,
-      };
-    }
-
-    const todo = tasks.filter((t) => t.status === "todo").length;
-    const inProgress = tasks.filter((t) => t.status === "in_progress").length;
-    const done = tasks.filter((t) => t.status === "done").length;
-
-    return {
-      structuredContent: { tasks },
-      content: [
-        {
-          type: "text",
-          text: `${todo} todo, ${inProgress} in progress, ${done} done. ${tasks.length} total tasks.`,
-        },
-      ],
-    };
-  },
-);
+)
 
 export default server;
 export type AppType = typeof server;
