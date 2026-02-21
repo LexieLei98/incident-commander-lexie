@@ -60,6 +60,7 @@ Migrations live in `supabase/migrations/`. Seed data with realistic examples is 
 
 ## Environment Variables
 
-Required in `.env` (copy from `.env.example`):
+Required in `.env`:
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
+- `GEMINI_API_KEY`

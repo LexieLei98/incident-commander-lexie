@@ -163,3 +163,103 @@ where status = 'pending' and occurred_at < now() - interval '1 hour';
 ### 5. Post-incident
 - Add certificate expiry alert in PagerDuty (threshold: 14 days before expiry).
 $md$);
+
+-- Incident Commander services (shared caching layer + payments)
+insert into services (name, description, owner, team, tier, dependencies) values
+  ('redis-cache',    'Shared caching layer used by multiple services',  'james.park@company.com',  'platform',  1, '{}'),
+  ('payments-api',   'Handles payment processing and Stripe integration', 'sarah.chen@company.com', 'payments',  1, '{"auth-service","postgres-primary","redis-cache"}'),
+  ('reporting-service', 'Async report generation and PDF export',       'lisa.nguyen@company.com', 'data',      3, '{"postgres-primary","redis-cache"}')
+on conflict (name) do nothing;
+
+-- Incident Commander runbooks
+insert into runbooks (service_name, scenario, steps) values
+  ('redis-cache',
+   'memory_spike',
+   $md$
+## Redis Cache — Memory Spike Runbook
+
+1. **Check memory usage**: `redis-cli info memory | grep used_memory_human`
+2. **Identify the writing service** (do this early — do not assume the culprit):
+   ```bash
+   redis-cli monitor | grep -E "SET|SETEX|HSET|LPUSH|RPUSH" | head -50
+   ```
+   Cross-reference client IPs: `redis-cli client list`
+3. **Find large keys**: `redis-cli --bigkeys`
+4. **Act based on culprit service**:
+   - **reporting-service**: `kubectl scale deployment/reporting-service --replicas=0 -n data`, then flush: `redis-cli --scan --pattern "report:*" | xargs redis-cli del`
+   - **payments-api**: check for recent deploy first (`kubectl rollout history deployment/payments-api -n payments`), rollback if needed, then flush idempotency/pay keys — see payments-api memory_spike runbook
+   - **unknown service**: flush the key namespace identified in step 3
+5. **Monitor recovery**: Cache hit rate should recover within 5 mins
+6. **Escalate to**: james.park@company.com | #platform-oncall
+
+**Note (Feb 21):** Root cause was misattributed to reporting-service twice before redis-cli monitor revealed payments-api as the actual culprit. Always run step 2 before assuming.
+$md$),
+
+  ('payments-api',
+   'memory_spike',
+   $md$
+## payments-api — Memory Spike / Redis Flood Runbook
+
+**Owner:** sarah.chen@company.com | **Slack:** #payments-oncall
+
+### 1. Identify the scope
+```bash
+# Check payments-api pod health
+kubectl get pods -n payments -l app=payments-api
+
+# Check current deploy version
+kubectl get deployment payments-api -n payments -o jsonpath='{.spec.template.spec.containers[0].image}'
+```
+
+### 2. Check for a recent bad deploy (do this first)
+```bash
+# Cross-reference deploy time with when redis memory spiked
+# A deploy that adds new Redis key namespaces is the most likely cause
+```
+→ If a deploy went out in the past few hours, **go to step 4 immediately**.
+
+### 3. Identify what payments-api is writing to Redis
+```bash
+redis-cli monitor | grep -E "SET|SETEX|HSET" | grep -v "session:" | head -50
+redis-cli --scan --pattern "idempotency:*" | wc -l
+redis-cli --scan --pattern "pay:*" | wc -l
+redis-cli --scan --pattern "payment:*" | wc -l
+```
+
+### 4. If a bad deploy is confirmed — rollback AND flush
+```bash
+# Step 1: Rollback the deploy
+kubectl rollout undo deployment/payments-api -n payments
+
+# Step 2: Verify rollback is running (do not skip)
+kubectl rollout status deployment/payments-api -n payments
+
+# Step 3: Flush ALL keys written by the bad version
+# ⚠️ The rollback alone is NOT enough — stale keys persist until flushed
+redis-cli --scan --pattern "idempotency:*" | xargs redis-cli del
+redis-cli --scan --pattern "pay:*" | xargs redis-cli del
+```
+
+### 5. Monitor recovery
+```bash
+# Redis memory should drop within 2 minutes of flush
+redis-cli info memory | grep used_memory_human
+# Cache hit rate should recover within 5 minutes
+```
+
+### 6. Check downstream services
+- **auth-service** — session lookups may have degraded; check error rate
+- **api-gateway** — rate limiting state may be stale; check for 401/403 spikes
+
+### 7. Escalate if not resolved within 10 minutes
+- Page sarah.chen@company.com (payments-api owner)
+- Page james.park@company.com (redis-cache / auth-service owner)
+- Bridge: #payments-oncall + #platform-oncall
+
+---
+
+**Lessons from Feb 21 incident:**
+- A rollback without a key flush left Redis at 98% for 2+ hours
+- `redis-cli monitor` is the fastest way to identify the writing service — run it early
+- Any deploy that introduces new Redis key namespaces must document those namespaces and include a flush step in the rollback procedure
+$md$);

@@ -74,6 +74,7 @@ Fill in your keys:
 ```
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+GEMINI_API_KEY=your-gemini-api-key
 ```
 
 **3. Link your Supabase project and push migrations**
@@ -109,7 +110,14 @@ Tunnel your local server with [cloudflared](https://developers.cloudflare.com/cl
 cloudflared tunnel --url http://localhost:3000
 ```
 
-Then add your tunnel URL with `/mcp` appended (e.g. `https://xxx.trycloudflare.com/mcp`) as a remote MCP server in Claude settings. Requires a Pro, Team, Max, or Enterprise account.
+Then add your tunnel URL with `/mcp` appended (e.g. `https://xxx.trycloudflare.com/mcp`) as a remote MCP server in Claude settings. 
+
+Local test with claude.ai
+
+```bash
+claude mcp remove incident-commander
+claude mcp add incident-commander `https://xxx.trycloudflare.com/mcp`
+```
 
 ## Supabase Commands
 

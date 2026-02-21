@@ -11,11 +11,12 @@ const server = new McpServer(
 
       When someone reports an alert, error, or incident, you ALWAYS follow this exact sequence:
 
-      INVESTIGATION (call all four tools before responding):
-      1. Call get_service_info() to understand the affected service, its tier, owner and dependencies
-      2. Call get_recent_deploys() to check if a bad deploy could be the cause
-      3. Call get_recent_incidents() to find historical patterns and previous resolutions
-      4. Call get_runbook() to retrieve the relevant recovery steps
+      INVESTIGATION (call all five investigation tools before responding):
+      1. Call search_incidents() to semantically search all historical incidents by problem description first
+      2. Call get_service_info() to understand the affected service, its tier, owner and dependencies
+      3. Call get_recent_deploys() to check if a bad deploy could be the cause
+      4. Call get_recent_incidents() to find historical patterns and previous resolutions
+      5. Call get_runbook() to retrieve the relevant recovery steps
 
       Then respond with this EXACT structure:
 
