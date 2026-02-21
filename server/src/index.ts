@@ -401,7 +401,44 @@ server.registerTool(
   }
 );
 
-// ─── TOOL 6: Save incident resolution back to the knowledge base ───────────────
+// ─── TOOL 6: Get all active incidents (last 24h, all services) ────────────────
+server.registerTool(
+  "get_all_active_incidents",
+  {
+    description: "Return all incidents that occurred in the last 24 hours across every service, ordered by severity (P1 first) then most-recent first. Use this to get a broad view of what is currently on fire.",
+    inputSchema: {},
+  },
+  async () => {
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { data, error } = await supabase
+      .from("incidents")
+      .select("*")
+      .gte("occurred_at", since);
+
+    if (error) {
+      return {
+        content: [{ type: "text", text: `Failed to fetch active incidents: ${error.message}` }],
+      };
+    }
+
+    if (!data?.length) {
+      return {
+        content: [{ type: "text", text: "No incidents in the last 24 hours." }],
+      };
+    }
+
+    const severityRank: Record<string, number> = { P1: 0, P2: 1, P3: 2 };
+    const sorted = data.sort((a, b) => {
+      const rankDiff = (severityRank[a.severity] ?? 9) - (severityRank[b.severity] ?? 9);
+      if (rankDiff !== 0) return rankDiff;
+      return new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime();
+    });
+
+    return { content: [{ type: "text", text: JSON.stringify(sorted, null, 2) }] };
+  }
+);
+
+// ─── TOOL 7: Save incident resolution back to the knowledge base ───────────────
 server.registerTool(
   "save_incident_resolution",
   {

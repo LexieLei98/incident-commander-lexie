@@ -18,6 +18,8 @@ const server = new McpServer(
       4. Call get_recent_incidents() to find historical patterns and previous resolutions
       5. Call get_runbook() to retrieve the relevant recovery steps
 
+      When someone asks for a global overview or status check, call get_all_active_incidents() to see every incident from the last 24 hours across all services, already sorted by severity.
+
       Then respond with this EXACT structure:
 
       ---
