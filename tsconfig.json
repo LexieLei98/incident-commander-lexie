@@ -19,5 +19,6 @@
     "noEmit": true
   },
   "include": ["server/src", "web/src", "web/vite.config.ts"],
-  "exclude": ["dist", "node_modules"]
+  "exclude": ["dist", "node_modules"],
+  "references": [{ "path": "./tsconfig.server.json" }]
 }

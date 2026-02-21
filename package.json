@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "skybridge dev",
     "build": "skybridge build",
-    "start": "skybridge start",
+    "start": "node dist/server/src/index.js",
     "deploy": "alpic deploy"
   },
   "dependencies": {
