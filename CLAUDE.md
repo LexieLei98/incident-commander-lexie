@@ -26,19 +26,28 @@ supabase migration new <name>        # Create a new migration file
 
 ## Architecture
 
-This is a **Skybridge MCP app** — an AI-powered incident response assistant. The server exposes four read-only MCP tools that Claude uses to investigate production incidents by querying an infrastructure knowledge base (services, incidents, deployments, runbooks) in Supabase.
+This is a **Skybridge MCP app** — an AI-powered incident response assistant. The server exposes seven MCP tools that Claude uses to investigate production incidents by querying an infrastructure knowledge base (services, incidents, deployments, runbooks) in Supabase. All service-name resolution uses **semantic search via Gemini embeddings** so plain-English descriptions work as input.
 
 **Two-layer structure:**
-- `server/src/` — Express + MCP backend. `index.ts` registers all four MCP tools and their Supabase queries inline. `server.ts` defines the McpServer with system instructions that force Claude to call all four tools before responding. `env.ts` validates environment variables at startup via t3-env + Zod.
+- `server/src/` — Express + MCP backend. `index.ts` registers all seven MCP tools, the `embedText()` helper, and the startup `ensureEmbeddings()` backfill. `server.ts` defines the McpServer with system instructions. `env.ts` validates environment variables at startup via t3-env + Zod.
 - `web/src/` — React frontend (currently legacy task management code from the starter template — not actively used by the incident commander feature).
 
-**MCP tools (all read-only, registered in `server/src/index.ts`):**
-- `get_service_info(service_name)` — service catalog (name, owner, team, tier, dependencies)
-- `get_recent_incidents(service_name, limit?)` — incident history ordered by recency
-- `get_recent_deploys(service_name, hours?)` — deployments within a time window
-- `get_runbook(service_name, scenario?)` — step-by-step recovery instructions (Markdown)
+**Semantic search (Gemini):**
+- `embedText(text)` calls `gemini-embedding-001` (768 dimensions) via the `@google/generative-ai` SDK with up to 3 retries and exponential backoff.
+- `ensureEmbeddings()` runs at startup and backfills any `services` or `incidents` rows that have a null `embedding` column (5 rows in parallel).
+- `resolveServiceName(query)` embeds the query, calls the `match_services` Supabase RPC (cosine similarity), and returns the canonical name only if similarity ≥ 0.4.
+- Postgres RPCs `match_services` / `match_incidents` use HNSW indexes and `<=>` cosine distance.
 
-**How Claude uses this app:** The system prompt in `server.ts` instructs Claude to always call all four tools before answering any incident question, then synthesize findings into: probable cause, blast radius, deploy risk, historical pattern, immediate actions, and a draft Slack message.
+**MCP tools (registered in `server/src/index.ts`):**
+- `search_incidents(problem_description, limit?)` — semantic search across ALL incidents by plain-English description; call first
+- `get_service_info(service_name)` — vector similarity lookup in the service catalogue
+- `get_recent_incidents(service_name, limit?)` — resolves service via `resolveServiceName`, then exact query
+- `get_recent_deploys(service_name, hours?)` — resolves service via `resolveServiceName`, queries deployment history
+- `get_runbook(service_name, scenario?)` — resolves service via `resolveServiceName`; scenario still uses ilike
+- `get_all_active_incidents()` — all incidents from the last 24 h across all services, sorted P1→P3 then by recency
+- `save_incident_resolution(...)` — embeds and inserts a resolved incident back into the knowledge base
+
+**How Claude uses this app:** The system prompt in `server.ts` instructs Claude to always call all tools before answering any incident question, then synthesize findings into: probable cause, blast radius, deploy risk, historical pattern, immediate actions, and a draft Slack message.
 
 **Data flow:**
 1. User reports an incident in Claude

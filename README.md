@@ -4,12 +4,15 @@ An AI-powered incident response assistant built with [Skybridge](https://docs.sk
 
 ## How It Works
 
-When you report an incident, Claude automatically calls all four MCP tools in parallel, then synthesizes the results into a war-room-ready brief:
+When you report an incident, Claude automatically calls all seven MCP tools, then synthesizes the results into a war-room-ready brief. All service-name inputs accept plain English — semantic search powered by **Gemini embeddings** (`gemini-embedding-001`, 768 dims) resolves the right service even without exact names.
 
-1. **`get_service_info`** — service catalog lookup: owner, team, tier, and dependency graph
-2. **`get_recent_deploys`** — checks for bad deploys in the last 24h that may have caused the issue
-3. **`get_recent_incidents`** — surfaces historical failure patterns for the service
-4. **`get_runbook`** — retrieves the step-by-step recovery playbook for the failure scenario
+1. **`search_incidents`** — semantic search across all past incidents by plain-English problem description; called first to surface similar failures across every service
+2. **`get_service_info`** — service catalog lookup via vector similarity: owner, team, tier, and dependency graph
+3. **`get_recent_deploys`** — checks for bad deploys in the last 24h that may have caused the issue
+4. **`get_recent_incidents`** — surfaces historical failure patterns for the service
+5. **`get_runbook`** — retrieves the step-by-step recovery playbook for the failure scenario
+6. **`get_all_active_incidents`** — broad view of all incidents across all services in the last 24h, sorted by severity
+7. **`save_incident_resolution`** — embeds and persists a resolved incident back into the knowledge base so future investigations benefit from it
 
 Claude's response always includes:
 - **Probable cause** — based on deploy history and incident patterns
