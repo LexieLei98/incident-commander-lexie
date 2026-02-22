@@ -148,7 +148,7 @@ some reads seem to be returning stale data.
 | Semantic service resolution | Voyage → Gemini `gemini-embedding-001`, 768-dim vectors, HNSW index in pgvector |
 | Plain-English incident search | `match_incidents` RPC, cosine similarity, 0.4 threshold |
 | Persistent knowledge base | Every resolved incident is embedded and inserted — the system gets smarter with use |
-| Restart-safe timing | Incident start times persisted in Supabase, not in-memory |
+| Restart-safe timing | Incident start times persisted in the `incident_investigations` table in Supabase (not in-memory), so duration tracking survives server restarts |
 | Failed resolution tracking | `worked: false` incidents are saved too — teams can see what didn't work |
 | Deploy correlation | Automatic 24h deploy window check on every investigation |
 

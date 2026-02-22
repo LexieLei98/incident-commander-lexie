@@ -29,6 +29,7 @@ Four tables in Supabase, with RLS enabled:
 | `incidents` | Incident history — severity (P1/P2/P3), root cause, resolution, duration |
 | `deployments` | Deploy log — version, status (success/failed/rolled_back), timestamp |
 | `runbooks` | Recovery playbooks — Markdown steps keyed by service + scenario |
+| `incident_investigations` | Active investigation tracker — records investigation start time per service, persisted across server restarts for accurate duration calculation |
 
 ## Prerequisites
 
@@ -84,7 +85,7 @@ supabase link
 supabase db push
 ```
 
-This creates the `services`, `incidents`, `deployments`, and `runbooks` tables.
+This creates the `services`, `incidents`, `deployments`, `runbooks`, and `incident_investigations` tables.
 
 **4. Seed the database**
 
