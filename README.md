@@ -29,6 +29,7 @@ Four tables in Supabase, with RLS enabled:
 | `incidents` | Incident history — severity (P1/P2/P3), root cause, resolution, duration |
 | `deployments` | Deploy log — version, status (success/failed/rolled_back), timestamp |
 | `runbooks` | Recovery playbooks — Markdown steps keyed by service + scenario |
+| `incident_investigations` | Active investigation tracker — records investigation start time per service, persisted across server restarts for accurate duration calculation |
 
 ## Prerequisites
 
@@ -74,6 +75,7 @@ Fill in your keys:
 ```
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+GEMINI_API_KEY=your-gemini-api-key
 ```
 
 **3. Link your Supabase project and push migrations**
@@ -83,7 +85,7 @@ supabase link
 supabase db push
 ```
 
-This creates the `services`, `incidents`, `deployments`, and `runbooks` tables.
+This creates the `services`, `incidents`, `deployments`, `runbooks`, and `incident_investigations` tables.
 
 **4. Seed the database**
 
@@ -109,7 +111,14 @@ Tunnel your local server with [cloudflared](https://developers.cloudflare.com/cl
 cloudflared tunnel --url http://localhost:3000
 ```
 
-Then add your tunnel URL with `/mcp` appended (e.g. `https://xxx.trycloudflare.com/mcp`) as a remote MCP server in Claude settings. Requires a Pro, Team, Max, or Enterprise account.
+Then add your tunnel URL with `/mcp` appended (e.g. `https://xxx.trycloudflare.com/mcp`) as a remote MCP server in Claude settings. 
+
+Local test with claude.ai
+
+```bash
+claude mcp remove incident-commander
+claude mcp add incident-commander `https://xxx.trycloudflare.com/mcp`
+```
 
 ## Supabase Commands
 
